@@ -1,87 +1,136 @@
-import os
-import subprocess
-import sys
+# Loan Recovery Prediction for Asset Reconstruction Company (ARC)
 
-def run_command(command, description):
-    print(f"[*] {description}...")
-    subprocess.check_call(command, shell=True)
+This repository contains my submission for the **Colrows AI/ML Internship Assignment**, focused on predicting the recovery rate of defaulted loans using historical loan and recovery-process data.
 
-def create_and_run():
-    # 1. Download the specialized 2B Vision model (fits in 8GB RAM)
-    run_command("ollama pull qwen2-vl:2b", "Downloading Local AI (Qwen2-VL 2B)")
+## Problem Statement
 
-    # 2. Install Python requirements
-    run_command("pip install customtkinter keyboard mss pillow ollama", "Installing Libraries")
+The objective is to predict the **recovery_rate** (fraction of outstanding principal recovered) for a portfolio of defaulted loans.
 
-    # 3. Create the actual Helper Script
-    helper_code = '''
-import warnings
-warnings.filterwarnings("ignore")
-import customtkinter as ctk
-import keyboard
-import mss
-import threading
-from PIL import Image
-import ollama
-import os
+The solution includes:
 
-# CONFIG
-MODEL = "qwen2-vl:2b"
-HOTKEY = "ctrl+shift+s"
+- Data exploration
+- Feature engineering
+- Target leakage prevention
+- CatBoost regression model
+- Model evaluation
+- Feature importance analysis
+- Test set prediction generation
 
-class LocalOverlay(ctk.CTk):
-    def __init__(self):
-        super().__init__()
-        self.overrideredirect(True)
-        self.attributes("-topmost", True)
-        h = self.winfo_screenheight()
-        # Small discreet box at bottom left
-        self.geometry(f"200x35+10+{h-50}")
-        self.configure(fg_color="#1a1a1a")
+---
 
-        self.label = ctk.CTkLabel(self, text="LOCAL AI READY", text_color="white", font=("Arial", 9, "bold"))
-        self.label.pack(expand=True, fill="both")
+## Project Structure
 
-        keyboard.add_hotkey(HOTKEY, self.start_task)
+```
+.
+├── Colrows_Assignment.ipynb      # Complete implementation
+├── predictions.csv               # Test set predictions
+├── Report.pdf                    # Assignment write-up
+└── README.md
+```
 
-    def start_task(self):
-        self.label.configure(text="Reading Screen...", text_color="#ffcc00")
-        threading.Thread(target=self.solve).start()
+---
 
-    def solve(self):
-        try:
-            with mss.mss() as sct:
-                sct.shot(output="snap.png")
-            
-            # Send screenshot to local Ollama model
-            response = ollama.chat(
-                model=MODEL,
-                messages=[{
-                    "role": "user",
-                    "content": "Identify the machining question and give a very brief answer.",
-                    "images": ["snap.png"]
-                }]
-            )
-            ans = response["message"]["content"].strip()
-            # Update UI with the result
-            self.after(0, lambda: self.label.configure(text=ans[:60], text_color="#00ff00"))
-            if os.path.exists("snap.png"): os.remove("snap.png")
-        except Exception:
-            self.after(0, lambda: self.label.configure(text="Local Error", text_color="red"))
+## Approach
 
-if __name__ == "__main__":
-    app = LocalOverlay()
-    app.mainloop()
-'''
-    with open("local_helper.py", "w") as f:
-        f.write(helper_code)
+### Data Exploration
+- Inspected dataset structure
+- Identified missing values
+- Examined numerical and categorical features
 
-    print("[*] Everything is ready!")
-    print("[*] Launching the helper in the background...")
-    
-    # Run the newly created helper without showing a console window
-    subprocess.Popen([sys.executable, "local_helper.py"], 
-                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+### Feature Engineering
+Additional features created include:
 
-if __name__ == "__main__":
-    create_and_run()
+- Average FICO score
+- FICO score spread
+- Loan-to-income ratio
+- Revolving balance-to-income ratio
+
+### Leakage Prevention
+
+The following variables were excluded from model training:
+
+- `recoveries`
+- `collection_recovery_fee`
+- `recovery_rate` (target)
+- `payment_plan_status` (not available in the test dataset)
+
+This ensures the model only uses features available during inference.
+
+---
+
+## Model
+
+**CatBoostRegressor**
+
+Reasons for selection:
+
+- Native handling of categorical variables
+- Robust handling of missing values
+- Strong performance on tabular datasets
+- Minimal preprocessing requirements
+
+---
+
+## Evaluation
+
+Validation metrics:
+
+| Metric | Value |
+|---------|-------|
+| MAE | 0.0950 |
+| RMSE | 0.1179 |
+| R² | 0.6291 |
+
+---
+
+## Feature Importance
+
+Top contributing features include:
+
+1. recovery_status
+2. days_past_due_at_default
+3. debt-to-income ratio (DTI)
+4. Average FICO score
+5. FICO range
+
+---
+
+## Requirements
+
+```
+pandas
+numpy
+matplotlib
+scikit-learn
+catboost
+```
+
+Install using:
+
+```bash
+pip install pandas numpy matplotlib scikit-learn catboost
+```
+
+---
+
+## Running the Notebook
+
+1. Open the notebook in Google Colab or Jupyter Notebook.
+2. Place the provided training and test CSV files in the working directory.
+3. Run all cells sequentially.
+4. The notebook generates:
+
+- Validation metrics
+- Feature importance
+- `predictions.csv`
+
+---
+
+## Notes
+
+This solution emphasizes:
+
+- Preventing target leakage
+- Explainable feature engineering
+- Proper validation methodology
+- A production-oriented machine learning workflow
